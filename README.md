@@ -1,58 +1,184 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Glitter Issue Tracker
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Project Overview
 
-## About Laravel
+- Internal issue tracker for a small team.
+- Laravel 13 monolith with Livewire 4 for server-driven UI.
+- Authentication-gated workspace with a public landing page at `/`.
+- Not API-first.
+- Not a multi-tenant SaaS product.
+- Not split into microservices.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Architecture
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- Monolith structure:
+  - `app/Livewire`: page-level UI and orchestration.
+  - `app/Services`: business mutations and cross-cutting workflows.
+  - `app/Models`: Eloquent domain models.
+  - `routes/web.php`: web routes and small auth handlers.
+  - `resources/views`: Blade templates and Livewire views.
+  - `database/migrations`: schema and framework tables.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- Livewire role:
+  - Livewire components handle rendering, validation, UI state, and browser interaction.
+  - Full-page components are used for authenticated pages such as dashboard, issue workspace, email verification, and registration.
 
-## Learning Laravel
+- Service layer:
+  - `IssueService`: synchronous issue create/update/delete behavior.
+  - `CommentService`: synchronous comment create/update/delete behavior and dispatch of the single async side effect.
+  - `EmailVerificationService`: pre-registration email verification workflow.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- No API layer:
+  - No REST API.
+  - No GraphQL.
+  - No SPA client.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Core Features
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+- Authentication:
+  - login
+  - logout
+  - password reset
+  - email verification before registration
 
-## Agentic Development
+- Issue tracking:
+  - create, update, delete issues
+  - assign ownership
+  - status and priority tracking
+  - workspace filtering and search
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+- Comments:
+  - create, update, delete comments
+  - issue discussion stays attached to work items
+
+- Dashboard:
+  - aggregate issue metrics
+  - recent issue visibility
+
+## Runtime Model
+
+- Session-based authentication using Laravel's web guard.
+- Server-rendered pages with Livewire updates, not client-side routing.
+- No SPA hydration model.
+- Database-backed queue configured for background work.
+- Queue usage is intentionally minimal.
+
+## Async Policy
+
+- Core mutations stay synchronous:
+  - issue creation
+  - issue updates
+  - issue deletion
+  - comment creation
+  - comment updates and deletion
+
+- Async is limited to non-critical side effects.
+- Current async job:
+  - `CommentCreatedJob`
+
+- Current async behavior:
+  - dispatched after comment creation
+  - logs the comment creation event
+  - does not contain business-critical logic
+
+## Session & UX Model
+
+- Redirect intent is preserved with Laravel's intended redirect flow.
+- Protected-page access while unauthenticated redirects to `/login`, then back to the requested page after login.
+- Session-expiration recovery is navigation-only:
+  - the user re-authenticates
+  - the destination page reloads fresh
+  - no form restoration
+  - no Livewire state restoration
+
+- UX signal:
+  - login page shows a one-time session-expired flash message when auth middleware sends the user back to login
+
+## Frontend
+
+- Blade for static pages and shared layout fragments.
+- Livewire for interactive application pages.
+- Tailwind CSS for utility styling.
+- Token-based theming with three modes:
+  - light
+  - dark
+  - dim
+
+## Design System
+
+- Styling is controlled by CSS variables in `resources/css/app.css`.
+- Surface hierarchy:
+  - `surface-0`: page background
+  - `surface-1`: base container
+  - `surface-2`: elevated card
+  - `surface-3`: emphasis block
+
+- Theme behavior:
+  - themes differ by tone, contrast, and depth
+  - layout does not change per theme
+  - tokens control surfaces, text, borders, elevation, and accent usage
+
+## Local Development
+
+- Install dependencies:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer install
+npm install
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+- Initialize the app:
 
-## Contributing
+```bash
+php artisan key:generate
+php artisan migrate
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+- Start frontend development build:
 
-## Code of Conduct
+```bash
+npm run dev
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- If you also want the Laravel app running locally:
 
-## Security Vulnerabilities
+```bash
+php artisan serve
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Build & Test
 
-## License
+```bash
+npm run build
+./vendor/bin/pint
+php artisan test
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Security Notes
+
+- `.env` is expected to remain local and must not be committed.
+- Credentials in development or staging must not be reused in production.
+- Authentication is session-based; there is no token API surface.
+- Registration is gated behind email verification.
+- Password reset uses Laravel's native password broker.
+- Session recovery does not restore unsaved user input by design.
+
+## Deployment Notes
+
+- No Docker setup is included.
+- No CI pipeline is included in this repository.
+- No infrastructure-as-code is included.
+- Deployment is expected to be handled manually or by external infrastructure outside this repo.
+- Required runtime concerns:
+  - web server / PHP process manager
+  - writable Laravel storage paths
+  - configured database
+  - configured SMTP
+  - queue worker for database-backed jobs
+
+## Project Status
+
+- Production-ready within a deliberately small scope.
+- Stable authentication and recovery UX.
+- Stable Livewire monolith with minimal async behavior.
+- Feature scope is intentionally narrow: internal issue tracking, not a generalized work management platform.

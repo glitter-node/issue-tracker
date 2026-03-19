@@ -40,9 +40,7 @@ class IssueList extends Component
 
     #[On('workspace-issue-saved')]
     #[On('workspace-issue-deleted')]
-    public function refreshList(): void
-    {
-    }
+    public function refreshList(): void {}
 
     public function updatedSearchQuery(): void
     {
@@ -85,6 +83,7 @@ class IssueList extends Component
 
         return view('livewire.issue-list', [
             'issues' => $issues,
+            'hasAnyIssues' => Issue::query()->exists(),
         ]);
     }
 }

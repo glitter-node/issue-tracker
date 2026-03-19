@@ -34,7 +34,21 @@
                     </tr>
                 @empty
                     <tr>
-                        <td class="px-5 py-10 text-center text-slate-500" colspan="5">No issues match the current filters.</td>
+                        <td class="px-5 py-10 text-center" colspan="5">
+                            @if (! $hasAnyIssues)
+                                <div class="space-y-4">
+                                    <div>
+                                        <p class="font-medium text-slate-900">No issues yet.</p>
+                                        <p class="mt-1 text-slate-500">Create your first issue to get started.</p>
+                                    </div>
+                                    <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700" type="button" wire:click="startCreate">
+                                        Create Issue
+                                    </button>
+                                </div>
+                            @else
+                                <p class="text-slate-500">No issues match the current filters.</p>
+                            @endif
+                        </td>
                     </tr>
                 @endforelse
             </tbody>

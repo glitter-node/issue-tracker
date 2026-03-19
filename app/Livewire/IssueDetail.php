@@ -5,8 +5,10 @@ namespace App\Livewire;
 use App\Models\Comment;
 use App\Models\Issue;
 use App\Models\User;
-use Illuminate\Support\Facades\Log;
+use App\Services\CommentService;
+use App\Services\IssueService;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Reactive;
@@ -95,16 +97,7 @@ class IssueDetail extends Component
         $this->isSaving = true;
         $validated = $this->validate($this->issueRules());
 
-        $issue = new Issue([
-            'title' => $validated['title'],
-            'description' => $validated['description'],
-            'status' => $validated['status'],
-            'priority' => $validated['priority'],
-            'category' => $validated['category'],
-            'assigned_to' => $validated['assignedTo'] !== '' ? (int) $validated['assignedTo'] : null,
-        ]);
-        $issue->created_by = auth()->id();
-        $issue->save();
+        $issue = app(IssueService::class)->createIssue($validated, (int) auth()->id());
 
         $this->resetErrorBag();
         $this->isSaving = false;
@@ -128,20 +121,9 @@ class IssueDetail extends Component
         $this->isSaving = true;
         $validated = $this->validate($this->issueRules());
 
-        $updated = Issue::query()
-            ->whereKey($issue->id)
-            ->where('updated_at', $this->issueVersion)
-            ->update([
-            'title' => $validated['title'],
-            'description' => $validated['description'],
-            'status' => $validated['status'],
-            'priority' => $validated['priority'],
-            'category' => $validated['category'],
-            'assigned_to' => $validated['assignedTo'] !== '' ? (int) $validated['assignedTo'] : null,
-            'updated_at' => now(),
-        ]);
+        $updated = app(IssueService::class)->updateIssue($issue, $validated, $this->issueVersion);
 
-        if ($updated === 0) {
+        if (! $updated) {
             $this->markIssueConflict();
 
             return;
@@ -166,12 +148,9 @@ class IssueDetail extends Component
             return;
         }
 
-        $deleted = Issue::query()
-            ->whereKey($issue->id)
-            ->where('updated_at', $this->issueVersion)
-            ->delete();
+        $deleted = app(IssueService::class)->deleteIssue($issue, $this->issueVersion);
 
-        if ($deleted === 0) {
+        if (! $deleted) {
             $this->markIssueConflict();
 
             return;
@@ -208,12 +187,7 @@ class IssueDetail extends Component
             'newComment' => ['required', 'string', 'max:1000'],
         ]);
 
-        $comment = new Comment([
-            'content' => $validated['newComment'],
-        ]);
-        $comment->issue_id = $this->issueId;
-        $comment->user_id = auth()->id();
-        $comment->save();
+        app(CommentService::class)->createComment($this->issueId, (int) auth()->id(), $validated['newComment']);
 
         $this->reset('newComment');
         $this->commentsLimit = max($this->commentsLimit, 20);
@@ -241,16 +215,14 @@ class IssueDetail extends Component
             'editingComment' => ['required', 'string', 'max:1000'],
         ]);
 
-        $updated = Comment::query()
-            ->whereKey($comment->id)
-            ->where('issue_id', $this->issueId)
-            ->where('updated_at', $this->editingCommentVersion)
-            ->update([
-                'content' => $validated['editingComment'],
-                'updated_at' => now(),
-            ]);
+        $updated = app(CommentService::class)->updateComment(
+            $comment,
+            (int) $this->issueId,
+            $validated['editingComment'],
+            (string) $this->editingCommentVersion,
+        );
 
-        if ($updated === 0) {
+        if (! $updated) {
             Log::warning('Comment update conflict detected.', [
                 'comment_id' => $comment->id,
                 'issue_id' => $this->issueId,
@@ -280,13 +252,13 @@ class IssueDetail extends Component
 
         abort_if(Gate::denies('delete', $comment), 403);
 
-        $deleted = Comment::query()
-            ->whereKey($comment->id)
-            ->where('issue_id', $this->issueId)
-            ->where('updated_at', $comment->getRawOriginal('updated_at'))
-            ->delete();
+        $deleted = app(CommentService::class)->deleteComment(
+            $comment,
+            (int) $this->issueId,
+            (string) $comment->getRawOriginal('updated_at'),
+        );
 
-        if ($deleted === 0) {
+        if (! $deleted) {
             Log::warning('Comment delete conflict detected.', [
                 'comment_id' => $comment->id,
                 'issue_id' => $this->issueId,

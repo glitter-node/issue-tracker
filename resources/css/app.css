@@ -93,3 +93,253 @@
 @utility metric-bar-100 {
     width: 100%;
 }
+
+:root,
+:root[data-theme='light'] {
+    color-scheme: light;
+    --surface-0: #f3f6fb;
+    --surface-1: #ffffff;
+    --surface-2: #fdfefe;
+    --surface-3: #e8eef8;
+    --text-primary: #1e293b;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
+    --border-subtle: #d7e0ea;
+    --border-strong: #c3d0de;
+    --color-primary: #6366f1;
+    --color-primary-hover: #4f46e5;
+    --color-primary-foreground: #ffffff;
+    --color-accent: #6366f1;
+    --shadow-soft: 0 1px 0 rgba(15, 23, 42, 0.04);
+    --shadow-strong: 0 2px 0 rgba(15, 23, 42, 0.05);
+    --surface-glow: 0 0 0 rgba(0, 0, 0, 0);
+    --bg-gradient-intensity: 0.18;
+}
+
+:root[data-theme='dark'] {
+    color-scheme: dark;
+    --surface-0: #020617;
+    --surface-1: #0f172a;
+    --surface-2: #162238;
+    --surface-3: #10263b;
+    --text-primary: #f8fafc;
+    --text-secondary: #d8e2f0;
+    --text-muted: #94a8bf;
+    --border-subtle: #2b3e57;
+    --border-strong: #3a5678;
+    --color-primary: #6366f1;
+    --color-primary-hover: #4f46e5;
+    --color-primary-foreground: #ffffff;
+    --color-accent: #6366f1;
+    --shadow-soft: 0 18px 45px rgba(2, 6, 23, 0.52);
+    --shadow-strong: 0 28px 70px rgba(2, 6, 23, 0.68);
+    --surface-glow: 0 0 0 1px rgba(56, 189, 248, 0.14), 0 0 40px rgba(56, 189, 248, 0.14);
+    --bg-gradient-intensity: 0.9;
+}
+
+:root[data-theme='dim'] {
+    color-scheme: dark;
+    --surface-0: #18212d;
+    --surface-1: #233142;
+    --surface-2: #2b3b4f;
+    --surface-3: #26374a;
+    --text-primary: #e5e7eb;
+    --text-secondary: #d4dbe5;
+    --text-muted: #98a6b8;
+    --border-subtle: #415268;
+    --border-strong: #56677b;
+    --color-primary: #6366f1;
+    --color-primary-hover: #4f46e5;
+    --color-primary-foreground: #ffffff;
+    --color-accent: #6366f1;
+    --shadow-soft: 0 10px 24px rgba(2, 6, 23, 0.18);
+    --shadow-strong: 0 14px 34px rgba(2, 6, 23, 0.22);
+    --surface-glow: 0 0 0 rgba(0, 0, 0, 0);
+    --bg-gradient-intensity: 0.22;
+}
+
+:root {
+    --color-bg: var(--surface-0);
+    --color-surface: var(--surface-1);
+    --color-text: var(--text-primary);
+    --color-muted: var(--text-muted);
+    --color-border: var(--border-subtle);
+}
+
+html,
+body {
+    background-color: var(--surface-0);
+    color: var(--text-primary);
+}
+
+body {
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--color-accent) 24%, transparent) 0%, transparent 48%),
+        linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 14%, var(--color-bg)) 0%, var(--color-bg) 74%);
+    opacity: var(--bg-gradient-intensity);
+}
+
+.theme-backdrop {
+    background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--color-accent) 28%, transparent) 0%, transparent 44%),
+        linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 20%, var(--surface-0)) 0%, var(--surface-0) 72%);
+    opacity: var(--bg-gradient-intensity);
+}
+
+.shadow-sm {
+    box-shadow: var(--shadow-soft);
+}
+
+.shadow-2xl {
+    box-shadow: var(--shadow-strong), var(--surface-glow);
+}
+
+.rounded-2xl.border,
+.rounded-3xl.border,
+.rounded-xl.border,
+.rounded-lg.border,
+.rounded-md.border,
+.rounded-2xl.border-dashed {
+    box-shadow: var(--shadow-soft);
+}
+
+.surface-1 {
+    background-color: var(--surface-1);
+    border-color: var(--border-subtle);
+    box-shadow: var(--shadow-soft);
+}
+
+.surface-2 {
+    background-color: var(--surface-2);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-strong), var(--surface-glow);
+}
+
+.surface-3 {
+    background-color: var(--surface-3);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-soft);
+}
+
+.card {
+    background-color: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-soft);
+}
+
+.panel {
+    background-color: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-strong), var(--surface-glow);
+}
+
+.section {
+    background-color: var(--surface-3);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-soft);
+}
+
+.bg-slate-100 {
+    background-color: var(--surface-0);
+}
+
+.bg-slate-50,
+.bg-white,
+.bg-white\/95 {
+    background-color: var(--surface-1);
+}
+
+.bg-slate-900,
+.bg-slate-950,
+.bg-cyan-400 {
+    background-color: var(--color-primary);
+}
+
+.bg-slate-900\/70,
+.bg-white\/5,
+.bg-white\/80 {
+    background-color: var(--surface-2);
+}
+
+.border-slate-200,
+.border-slate-300 {
+    border-color: var(--border-subtle);
+}
+
+.border-white\/10,
+.border-white\/15 {
+    border-color: var(--border-strong);
+}
+
+.text-slate-950,
+.text-slate-900,
+.text-white,
+.text-slate-100 {
+    color: var(--text-primary);
+}
+
+.text-slate-700,
+.text-slate-600,
+.text-slate-500,
+.text-slate-400,
+.text-slate-300,
+.text-slate-200 {
+    color: var(--text-secondary);
+}
+
+.text-slate-500,
+.text-slate-400 {
+    color: var(--text-muted);
+}
+
+.text-cyan-300,
+.text-cyan-300\/80 {
+    color: var(--color-primary);
+}
+
+.bg-slate-900.text-white,
+.bg-slate-950.text-white,
+.bg-cyan-400.text-slate-950 {
+    color: var(--color-primary-foreground);
+    box-shadow: var(--surface-glow);
+}
+
+.border-slate-300.text-slate-700,
+.border-white\/15.text-slate-200 {
+    color: var(--color-text);
+}
+
+.hover\:bg-slate-700:hover,
+.hover\:bg-cyan-300:hover {
+    background-color: var(--color-primary-hover);
+}
+
+.hover\:bg-slate-100:hover,
+.hover\:bg-slate-200:hover,
+.hover\:bg-white:hover,
+.hover\:bg-slate-50:hover {
+    background-color: color-mix(in srgb, var(--color-surface) 82%, var(--color-bg));
+}
+
+.hover\:text-slate-950:hover,
+.hover\:text-cyan-200:hover {
+    color: var(--color-primary-hover);
+}
+
+.hover\:border-slate-400:hover,
+.hover\:border-cyan-300:hover {
+    border-color: var(--color-primary-hover);
+}
+
+body > .relative.overflow-hidden > .absolute.inset-0 {
+    opacity: var(--bg-gradient-intensity);
+}

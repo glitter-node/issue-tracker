@@ -2,13 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\CommentCreatedJob;
 use App\Livewire\Dashboard;
 use App\Livewire\IssueDetail;
 use App\Livewire\IssueList;
+use App\Mail\RegistrationVerificationMail;
 use App\Models\Comment;
 use App\Models\Issue;
 use App\Models\User;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -16,10 +23,58 @@ class IssueTrackerTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_guests_can_access_the_public_landing_page(): void
+    {
+        $this->get(route('landing'))
+            ->assertOk()
+            ->assertSee('<title>Home - GLITTER ISSUE TRACKER</title>', false)
+            ->assertSee('Simple issue tracking for small teams')
+            ->assertSee('Get started')
+            ->assertSee('Use case')
+            ->assertSee('Start tracking your work in minutes.')
+            ->assertSee(route('login'), false)
+            ->assertSee(route('register.email'), false);
+    }
+
+    public function test_authenticated_users_are_redirected_from_landing_page_to_dashboard(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get(route('landing'))
+            ->assertRedirect(route('dashboard'));
+    }
+
+    public function test_authenticated_layout_shows_current_user_identity_and_logout(): void
+    {
+        $user = User::factory()->create([
+            'name' => 'Session Visible User',
+            'email' => 'visible@example.com',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Session Visible User')
+            ->assertSee('visible@example.com')
+            ->assertSee('Logout');
+
+        $this->get(route('landing'))
+            ->assertDontSee('visible@example.com');
+    }
+
     public function test_guests_are_redirected_from_workspace_and_dashboard(): void
     {
         $this->get('/issues')->assertRedirect('/login');
         $this->get('/dashboard')->assertRedirect('/login');
+    }
+
+    public function test_session_expired_message_is_shown_after_guest_redirect_to_login(): void
+    {
+        $this->followingRedirects()
+            ->get(route('issues.index'))
+            ->assertOk()
+            ->assertSee('Your session expired. Please continue.');
     }
 
     public function test_user_can_login_with_session_auth(): void
@@ -29,9 +84,208 @@ class IssueTrackerTest extends TestCase
         $this->post(route('login.attempt'), [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertRedirect(route('issues.index'));
+        ])->assertRedirect(route('dashboard'));
 
         $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_login_page_uses_consistent_title_format(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('<title>Login - GLITTER ISSUE TRACKER</title>', false);
+    }
+
+    public function test_login_redirects_to_intended_protected_page(): void
+    {
+        $user = User::factory()->create();
+
+        $this->get(route('issues.index'))->assertRedirect(route('login'));
+
+        $this->post(route('login.attempt'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirect(route('issues.index'));
+    }
+
+    public function test_failed_login_preserves_email_and_remember_but_not_password(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->from(route('login'))->post(route('login.attempt'), [
+            'email' => $user->email,
+            'password' => 'wrong-password',
+            'remember' => '1',
+        ]);
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHasErrors([
+            'auth' => 'Invalid email or password.',
+        ]);
+        $response->assertSessionHasInput([
+            'email' => $user->email,
+            'remember' => '1',
+        ]);
+        $response->assertSessionMissing('_old_input.password');
+
+        $this->followingRedirects()->from(route('login'))->post(route('login.attempt'), [
+            'email' => $user->email,
+            'password' => 'wrong-password',
+            'remember' => '1',
+        ])
+            ->assertOk()
+            ->assertDontSee('Your session expired. Please continue.')
+            ->assertSee('Invalid email or password.')
+            ->assertSee('value="'.$user->email.'"', false)
+            ->assertSee('checked', false)
+            ->assertDontSee('wrong-password');
+    }
+
+    public function test_password_reset_flow_sends_email_and_allows_login_with_new_password(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create([
+            'password' => 'old-password',
+        ]);
+
+        $this->get(route('password.request'))->assertOk();
+
+        $this->post(route('password.email'), [
+            'email' => $user->email,
+        ])->assertSessionHas('status');
+
+        $token = null;
+
+        Notification::assertSentTo($user, ResetPassword::class, function (ResetPassword $notification) use (&$token): bool {
+            $token = $notification->token;
+
+            return $token !== null;
+        });
+
+        $this->get(route('password.reset', ['token' => $token]).'?email='.urlencode($user->email))
+            ->assertOk();
+
+        $this->post(route('password.update'), [
+            'token' => $token,
+            'email' => $user->email,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertRedirect(route('login'));
+
+        $this->post(route('login.attempt'), [
+            'email' => $user->email,
+            'password' => 'new-password',
+        ])->assertRedirect(route('dashboard'));
+    }
+
+    public function test_login_cancel_defaults_to_landing_page_on_direct_access(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertDontSee('Your session expired. Please continue.')
+            ->assertSee('href="'.route('landing').'"', false);
+    }
+
+    public function test_login_cancel_uses_safe_internal_previous_url(): void
+    {
+        $this->withHeader('referer', route('landing'))
+            ->get(route('login'))
+            ->assertOk()
+            ->assertSee('href="'.route('landing').'"', false);
+
+        $this->withHeader('referer', 'https://evil.example/login')
+            ->get(route('login'))
+            ->assertOk()
+            ->assertSee('href="'.route('landing').'"', false);
+
+        $this->withHeader('referer', route('issues.index'))
+            ->get(route('login'))
+            ->assertOk()
+            ->assertSee('href="'.route('landing').'"', false);
+    }
+
+    public function test_verify_email_cancel_defaults_to_landing_page_on_direct_access(): void
+    {
+        $this->get(route('register.email'))
+            ->assertOk()
+            ->assertSee('href="'.route('landing').'"', false);
+    }
+
+    public function test_verify_email_cancel_uses_safe_internal_previous_url(): void
+    {
+        $this->withHeader('referer', route('landing'))
+            ->get(route('register.email'))
+            ->assertOk()
+            ->assertSee('href="'.route('landing').'"', false);
+
+        $this->withHeader('referer', 'https://evil.example/register/email')
+            ->get(route('register.email'))
+            ->assertOk()
+            ->assertSee('href="'.route('landing').'"', false);
+    }
+
+    public function test_registration_requires_verified_email_before_access(): void
+    {
+        $this->get(route('register'))
+            ->assertRedirect(route('register.email'));
+
+        $this->post(route('register.store'), [
+            'name' => 'Unverified User',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'email' => 'attacker@example.com',
+        ])->assertRedirect(route('register.email'));
+    }
+
+    public function test_registration_flow_requires_email_verification_and_uses_session_email_only(): void
+    {
+        Mail::fake();
+
+        $email = 'verifyme@example.com';
+
+        $this->post(route('register.email.send'), [
+            'email' => $email,
+        ])->assertSessionHas('status');
+
+        $this->assertDatabaseHas('email_verifications', [
+            'email' => $email,
+            'verified_at' => null,
+        ]);
+
+        Mail::assertSent(RegistrationVerificationMail::class, function (RegistrationVerificationMail $mail) use ($email): bool {
+            return $mail->hasTo($email);
+        });
+
+        $token = DB::table('email_verifications')->where('email', $email)->value('token');
+
+        $this->get(route('register.verify', ['token' => $token]))
+            ->assertRedirect(route('register'));
+
+        $this->get(route('register'))
+            ->assertOk()
+            ->assertSee('value="'.$email.'"', false)
+            ->assertSee('disabled', false);
+
+        $this->post(route('register.store'), [
+            'name' => 'Verified User',
+            'email' => 'attacker@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ])->assertRedirect(route('login'));
+
+        $this->assertDatabaseHas('users', [
+            'name' => 'Verified User',
+            'email' => $email,
+        ]);
+
+        $this->assertDatabaseMissing('users', [
+            'email' => 'attacker@example.com',
+        ]);
+
+        $this->assertDatabaseMissing('email_verifications', [
+            'email' => $email,
+        ]);
     }
 
     public function test_workspace_page_renders_for_authenticated_user(): void
@@ -41,12 +295,27 @@ class IssueTrackerTest extends TestCase
         $this->actingAs($user)
             ->get(route('issues.index'))
             ->assertOk()
+            ->assertSee('<title>Issues - GLITTER ISSUE TRACKER</title>', false)
             ->assertSee('Search issues')
             ->assertSee('All Issues');
     }
 
+    public function test_issue_list_shows_first_time_empty_state(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get(route('issues.index'))
+            ->assertOk()
+            ->assertSee('No issues yet.')
+            ->assertSee('Create your first issue to get started.')
+            ->assertSee('Create Issue');
+    }
+
     public function test_issue_can_be_created_inside_workspace_panel(): void
     {
+        Queue::fake();
+
         $creator = User::factory()->create();
         $assignee = User::factory()->create();
 
@@ -70,6 +339,8 @@ class IssueTrackerTest extends TestCase
             'created_by' => $creator->id,
             'assigned_to' => $assignee->id,
         ]);
+
+        Queue::assertNothingPushed();
     }
 
     public function test_issue_list_supports_search_scope_and_status_filters(): void
@@ -232,6 +503,8 @@ class IssueTrackerTest extends TestCase
 
     public function test_comments_can_be_created_updated_and_deleted_by_author_only(): void
     {
+        Queue::fake();
+
         $creator = User::factory()->create();
         $author = User::factory()->create();
         $otherUser = User::factory()->create();
@@ -252,6 +525,10 @@ class IssueTrackerTest extends TestCase
             ->call('addComment');
 
         $comment = Comment::query()->firstOrFail();
+
+        Queue::assertPushed(CommentCreatedJob::class, function (CommentCreatedJob $job) use ($comment): bool {
+            return $job->comment->is($comment);
+        });
 
         Livewire::actingAs($author)
             ->test(IssueDetail::class, ['issueId' => $issue->id, 'mode' => 'view'])
